@@ -1,0 +1,31 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  setup:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up LUPINE client
+        id: lupine
+        uses: ./
+        with:
+          version: v0.2.0
+          cuda-version: 13.1.0
+          ubuntu-version: "24.04"
+
+      - name: Verify installed files
+        run: |
+          set -euo pipefail
+          test -f "${{ steps.lupine.outputs.libcuda }}"
+          test -f "${{ steps.lupine.outputs.libnvidia-ml }}"
+          test "$LUPINE_LIBCUDA" = "${{ steps.lupine.outputs.libcuda }}"
+          test "${LD_LIBRARY_PATH%%:*}" = "${{ steps.lupine.outputs.lib-dir }}"
+          ls -l "${{ steps.lupine.outputs.lib-dir }}"

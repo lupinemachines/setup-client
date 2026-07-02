@@ -1,0 +1,182 @@
+name: Setup LUPINE Client
+description: Download and configure the prebuilt LUPINE client shim libraries from GitHub release assets.
+author: lupinemachines
+
+inputs:
+  version:
+    description: LUPINE release tag to download, or "latest".
+    required: false
+    default: latest
+  repository:
+    description: GitHub repository that publishes LUPINE release assets.
+    required: false
+    default: lupinemachines/lupine
+  cuda-version:
+    description: CUDA version in the LUPINE client release asset name.
+    required: false
+    default: 13.1.0
+  ubuntu-version:
+    description: Ubuntu version in the LUPINE client release asset name.
+    required: false
+    default: "24.04"
+  architecture:
+    description: Release asset architecture, or "auto".
+    required: false
+    default: auto
+  install-dir:
+    description: Directory where the LUPINE client files should be installed.
+    required: false
+    default: ""
+  github-token:
+    description: Optional GitHub token for private repositories or higher rate limits.
+    required: false
+    default: ""
+  server:
+    description: Optional LUPINE_SERVER value to export for later steps.
+    required: false
+    default: ""
+  export-env:
+    description: Export LUPINE and LD_LIBRARY_PATH variables for later workflow steps.
+    required: false
+    default: "true"
+
+outputs:
+  install-dir:
+    description: Directory containing the installed LUPINE client release files.
+    value: ${{ steps.setup.outputs.install-dir }}
+  lib-dir:
+    description: Directory containing the LUPINE libcuda and libnvidia-ml shims.
+    value: ${{ steps.setup.outputs.lib-dir }}
+  libcuda:
+    description: Path to the LUPINE libcuda.so.1 shim.
+    value: ${{ steps.setup.outputs.libcuda }}
+  libnvidia-ml:
+    description: Path to the LUPINE libnvidia-ml.so.1 shim.
+    value: ${{ steps.setup.outputs.libnvidia-ml }}
+  asset-name:
+    description: Release asset downloaded by this action.
+    value: ${{ steps.setup.outputs.asset-name }}
+  download-url:
+    description: URL used to download the release asset.
+    value: ${{ steps.setup.outputs.download-url }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download LUPINE client release asset
+      id: setup
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_REPOSITORY: ${{ inputs.repository }}
+        INPUT_CUDA_VERSION: ${{ inputs.cuda-version }}
+        INPUT_UBUNTU_VERSION: ${{ inputs.ubuntu-version }}
+        INPUT_ARCHITECTURE: ${{ inputs.architecture }}
+        INPUT_INSTALL_DIR: ${{ inputs.install-dir }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        INPUT_SERVER: ${{ inputs.server }}
+        INPUT_EXPORT_ENV: ${{ inputs.export-env }}
+      run: |
+        set -euo pipefail
+
+        for tool in curl unzip sha256sum; do
+          if ! command -v "$tool" >/dev/null 2>&1; then
+            echo "setup-action requires '$tool' on the runner." >&2
+            exit 1
+          fi
+        done
+
+        if [ "$(uname -s)" != "Linux" ]; then
+          echo "setup-action currently supports Linux runners only." >&2
+          exit 1
+        fi
+
+        case "$INPUT_ARCHITECTURE" in
+          auto)
+            machine="$(uname -m)"
+            case "$machine" in
+              x86_64|amd64)
+                architecture="x86_64"
+                ;;
+              *)
+                echo "No LUPINE client release asset is available for architecture: $machine" >&2
+                exit 1
+                ;;
+            esac
+            ;;
+          x86_64|amd64)
+            architecture="x86_64"
+            ;;
+          *)
+            echo "Unsupported LUPINE client release asset architecture: $INPUT_ARCHITECTURE" >&2
+            exit 1
+            ;;
+        esac
+
+        ubuntu_version="${INPUT_UBUNTU_VERSION#ubuntu}"
+        asset_name="lupine-client-cuda-${INPUT_CUDA_VERSION}-ubuntu${ubuntu_version}-${architecture}.zip"
+
+        if [ "$INPUT_VERSION" = "latest" ]; then
+          download_url="https://github.com/${INPUT_REPOSITORY}/releases/latest/download/${asset_name}"
+        else
+          download_url="https://github.com/${INPUT_REPOSITORY}/releases/download/${INPUT_VERSION}/${asset_name}"
+        fi
+
+        if [ -n "$INPUT_INSTALL_DIR" ]; then
+          install_dir="$INPUT_INSTALL_DIR"
+        elif [ -n "${RUNNER_TOOL_CACHE:-}" ]; then
+          install_dir="${RUNNER_TOOL_CACHE}/lupine-client/${INPUT_VERSION}/cuda-${INPUT_CUDA_VERSION}-ubuntu${ubuntu_version}-${architecture}"
+        else
+          install_dir="${RUNNER_TEMP:-/tmp}/lupine-client/${INPUT_VERSION}/cuda-${INPUT_CUDA_VERSION}-ubuntu${ubuntu_version}-${architecture}"
+        fi
+
+        tmp_dir="$(mktemp -d)"
+        trap 'rm -rf "$tmp_dir"' EXIT
+
+        curl_args=(-fsSL --retry 3 --retry-delay 2)
+        if [ -n "$INPUT_GITHUB_TOKEN" ]; then
+          curl_args+=(-H "Authorization: Bearer ${INPUT_GITHUB_TOKEN}")
+          curl_args+=(-H "X-GitHub-Api-Version: 2022-11-28")
+        fi
+
+        mkdir -p "$install_dir"
+        curl "${curl_args[@]}" "$download_url" -o "$tmp_dir/$asset_name"
+        unzip -q -o "$tmp_dir/$asset_name" -d "$install_dir"
+
+        if [ -f "$install_dir/SHA256SUMS" ]; then
+          (cd "$install_dir" && sha256sum -c SHA256SUMS)
+        fi
+
+        libcuda="$install_dir/libcuda.so.1"
+        libnvidia_ml="$install_dir/libnvidia-ml.so.1"
+
+        test -f "$libcuda"
+        test -f "$libnvidia_ml"
+
+        ln -sfn libcuda.so.1 "$install_dir/libcuda.so"
+        ln -sfn libnvidia-ml.so.1 "$install_dir/libnvidia-ml.so"
+
+        if [ "$INPUT_EXPORT_ENV" = "true" ]; then
+          {
+            echo "LUPINE_HOME=$install_dir"
+            echo "LUPINE_LIB_DIR=$install_dir"
+            echo "LUPINE_LIBCUDA=$libcuda"
+            echo "LUPINE_LIB=$libcuda"
+            echo "LD_LIBRARY_PATH=$install_dir:${LD_LIBRARY_PATH:-}"
+            if [ -n "$INPUT_SERVER" ]; then
+              echo "LUPINE_SERVER=$INPUT_SERVER"
+            fi
+          } >> "$GITHUB_ENV"
+        elif [ "$INPUT_EXPORT_ENV" != "false" ]; then
+          echo 'export-env must be "true" or "false".' >&2
+          exit 1
+        fi
+
+        {
+          echo "install-dir=$install_dir"
+          echo "lib-dir=$install_dir"
+          echo "libcuda=$libcuda"
+          echo "libnvidia-ml=$libnvidia_ml"
+          echo "asset-name=$asset_name"
+          echo "download-url=$download_url"
+        } >> "$GITHUB_OUTPUT"
