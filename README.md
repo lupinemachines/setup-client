@@ -1,4 +1,4 @@
-# setup-action
+# setup-client
 
 GitHub Action for installing the prebuilt LUPINE client shims from
 `lupinemachines/lupine` release assets.
@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: lupinemachines/setup-action@v1
+      - uses: lupinemachines/setup-client@v1
         with:
           version: v0.2.0
           cuda-version: 13.1.0

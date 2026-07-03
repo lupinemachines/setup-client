@@ -81,13 +81,13 @@ runs:
 
         for tool in curl unzip sha256sum; do
           if ! command -v "$tool" >/dev/null 2>&1; then
-            echo "setup-action requires '$tool' on the runner." >&2
+            echo "setup-client requires '$tool' on the runner." >&2
             exit 1
           fi
         done
 
         if [ "$(uname -s)" != "Linux" ]; then
-          echo "setup-action currently supports Linux runners only." >&2
+          echo "setup-client currently supports Linux runners only." >&2
           exit 1
         fi
 
