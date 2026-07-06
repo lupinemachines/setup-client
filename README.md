@@ -1,11 +1,14 @@
 # setup-client
 
-GitHub Action for installing the prebuilt LUPINE client shims from
-`lupinemachines/lupine` release assets.
+GitHub Action step for adding GPUs to your run via [LUPINE](https://github.com/lupinemachines/lupine).
 
-The action downloads a release ZIP such as
-`lupine-client-cuda-13.1.0-ubuntu24.04-x86_64.zip`, verifies `SHA256SUMS` when
-present, and exports the library paths needed by later workflow steps.
+This lets you run workloads that need a GPU directly on GitHub Actions or any other CPU-only
+actions runner.
+
+By default, this action uses https://lupine.sh/ hosted free GPUs, however you can point
+it at your self-hosted GPU with the `server` argument.
+
+Only Linux runners are supported.
 
 ## Usage
 
@@ -18,10 +21,8 @@ jobs:
 
       - uses: lupinemachines/setup-client@v1
         with:
-          version: v0.2.0
           cuda-version: 13.1.0
           ubuntu-version: "24.04"
-          server: demo.lupinemachines.com:14833
 
       - run: |
           echo "$LUPINE_LIBCUDA"
@@ -33,7 +34,7 @@ CUDA 13.1.0 / Ubuntu 24.04 / x86_64 client asset.
 
 This action installs the LUPINE `libcuda` and `libnvidia-ml` shim libraries. It
 does not install CUDA runtime libraries, CUDA development tools, or
-`nvidia-smi`; install those separately if your job needs them.
+`nvidia-smi`; install those separately if your job needs them, we recommend [this action](https://github.com/Jimver/cuda-toolkit).
 
 ## Inputs
 
@@ -59,22 +60,3 @@ does not install CUDA runtime libraries, CUDA development tools, or
 | `libnvidia-ml` | Path to `libnvidia-ml.so.1`. |
 | `asset-name` | Release asset downloaded by the action. |
 | `download-url` | URL used to download the release asset. |
-
-## Exported Environment
-
-When `export-env` is `true`, later workflow steps receive:
-
-- `LUPINE_HOME`
-- `LUPINE_LIB_DIR`
-- `LUPINE_LIBCUDA`
-- `LUPINE_LIB`
-- `LD_LIBRARY_PATH`
-- `LUPINE_SERVER`, when the `server` input is set
-
-## Supported Assets
-
-The action currently supports Linux `x86_64` assets published by
-`lupinemachines/lupine`, for example:
-
-- `lupine-client-cuda-13.1.0-ubuntu24.04-x86_64.zip`
-- `lupine-client-cuda-12.4.1-ubuntu22.04-x86_64.zip`
