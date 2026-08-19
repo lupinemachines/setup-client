@@ -1,5 +1,5 @@
 name: Setup LUPINE Client
-description: Download and configure the prebuilt LUPINE client shim libraries from GitHub release assets.
+description: Install the LUPINE client and CLI, then authenticate with GitHub Actions OIDC.
 author: lupinemachines
 
 inputs:
@@ -39,6 +39,22 @@ inputs:
     description: Export LUPINE and LD_LIBRARY_PATH variables for later workflow steps.
     required: false
     default: "true"
+  cli-version:
+    description: Lupine Cloud CLI version to install, or "latest".
+    required: false
+    default: latest
+  cli-install-dir:
+    description: Directory where the Lupine Cloud CLI should be installed.
+    required: false
+    default: ""
+  api-url:
+    description: Lupine Cloud coordinator URL used for OIDC authentication.
+    required: false
+    default: https://api.lupine.sh
+  authenticate:
+    description: Exchange the current GitHub Actions OIDC identity for a short-lived Lupine token.
+    required: false
+    default: "true"
 
 outputs:
   install-dir:
@@ -59,6 +75,9 @@ outputs:
   download-url:
     description: URL used to download the release asset.
     value: ${{ steps.setup.outputs.download-url }}
+  cli-path:
+    description: Path to the installed Lupine Cloud CLI.
+    value: ${{ steps.cli.outputs.cli-path }}
 
 runs:
   using: composite
@@ -180,3 +199,48 @@ runs:
           echo "asset-name=$asset_name"
           echo "download-url=$download_url"
         } >> "$GITHUB_OUTPUT"
+
+    - name: Install Lupine Cloud CLI
+      id: cli
+      shell: bash
+      env:
+        INPUT_CLI_VERSION: ${{ inputs.cli-version }}
+        INPUT_CLI_INSTALL_DIR: ${{ inputs.cli-install-dir }}
+        INPUT_API_URL: ${{ inputs.api-url }}
+        INPUT_AUTHENTICATE: ${{ inputs.authenticate }}
+      run: |
+        set -euo pipefail
+
+        if [ "$INPUT_AUTHENTICATE" != "true" ] && [ "$INPUT_AUTHENTICATE" != "false" ]; then
+          echo 'authenticate must be "true" or "false".' >&2
+          exit 1
+        fi
+
+        if [ -n "$INPUT_CLI_INSTALL_DIR" ]; then
+          cli_install_dir="$INPUT_CLI_INSTALL_DIR"
+        else
+          cli_install_dir="${RUNNER_TOOL_CACHE:-${RUNNER_TEMP:-/tmp}}/lupine-cli/${INPUT_CLI_VERSION}/bin"
+        fi
+
+        tmp_dir="$(mktemp -d)"
+        trap 'rm -rf "$tmp_dir"' EXIT
+        curl -fsSL --retry 3 --retry-delay 2 https://dl.lupine.sh/install.sh -o "$tmp_dir/install.sh"
+        LUPINE_VERSION="$INPUT_CLI_VERSION" LUPINE_INSTALL_DIR="$cli_install_dir" sh "$tmp_dir/install.sh"
+
+        cli_path="$cli_install_dir/lupine"
+        test -x "$cli_path"
+        echo "$cli_install_dir" >> "$GITHUB_PATH"
+        {
+          echo "LUPINE_API_URL=$INPUT_API_URL"
+          echo "LUPINE_STATE_DIR=${RUNNER_TEMP:-/tmp}/lupine-state"
+        } >> "$GITHUB_ENV"
+        echo "cli-path=$cli_path" >> "$GITHUB_OUTPUT"
+
+    - name: Authenticate to Lupine with GitHub Actions OIDC
+      if: ${{ inputs.authenticate == 'true' }}
+      shell: bash
+      env:
+        LUPINE_API_URL: ${{ inputs.api-url }}
+      run: |
+        set -euo pipefail
+        "${{ steps.cli.outputs.cli-path }}" login --github-actions
