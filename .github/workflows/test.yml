@@ -20,6 +20,9 @@ jobs:
           version: v0.2.0
           cuda-version: 13.1.0
           ubuntu-version: "24.04"
+          # The released CLI does not include OIDC yet. Exercise installation
+          # here; the exchange can be enabled after the cloud release lands.
+          authenticate: "false"
 
       - name: Verify installed files
         run: |
@@ -28,4 +31,6 @@ jobs:
           test -f "${{ steps.lupine.outputs.libnvidia-ml }}"
           test "$LUPINE_LIBCUDA" = "${{ steps.lupine.outputs.libcuda }}"
           test "${LD_LIBRARY_PATH%%:*}" = "${{ steps.lupine.outputs.lib-dir }}"
+          test -x "${{ steps.lupine.outputs.cli-path }}"
+          "${{ steps.lupine.outputs.cli-path }}" version
           ls -l "${{ steps.lupine.outputs.lib-dir }}"
