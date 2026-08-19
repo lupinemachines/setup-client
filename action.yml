@@ -243,4 +243,4 @@ runs:
         LUPINE_API_URL: ${{ inputs.api-url }}
       run: |
         set -euo pipefail
-        "${{ steps.cli.outputs.cli-path }}" login --github-actions
+        "${{ steps.cli.outputs.cli-path }}" oidc github-actions
