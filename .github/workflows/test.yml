@@ -9,9 +9,6 @@ on:
 
 jobs:
   setup:
-    # Production OIDC is a post-merge smoke test. Pull-request code should not
-    # receive an account-scoped Lupine credential merely to validate the action.
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
