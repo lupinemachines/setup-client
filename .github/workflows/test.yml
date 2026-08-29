@@ -10,6 +10,9 @@ on:
 jobs:
   setup:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v6
 
@@ -28,4 +31,32 @@ jobs:
           test -f "${{ steps.lupine.outputs.libnvidia-ml }}"
           test "$LUPINE_LIBCUDA" = "${{ steps.lupine.outputs.libcuda }}"
           test "${LD_LIBRARY_PATH%%:*}" = "${{ steps.lupine.outputs.lib-dir }}"
+          command -v lupine
+          lupine version
           ls -l "${{ steps.lupine.outputs.lib-dir }}"
+
+  setup-user-managed:
+    runs-on: ubuntu-24.04
+    env:
+      LUPINE_SERVER: gpu.example.com:14833
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Verify CLI is initially absent
+        run: test -z "$(command -v lupine || true)"
+
+      - name: Set up LUPINE client
+        id: lupine
+        uses: ./
+        with:
+          version: v0.2.0
+          cuda-version: 13.1.0
+          ubuntu-version: "24.04"
+
+      - name: Verify user-managed server setup
+        run: |
+          set -euo pipefail
+          test "$LUPINE_SERVER" = "gpu.example.com:14833"
+          test -f "${{ steps.lupine.outputs.libcuda }}"
+          test "$LUPINE_LIBCUDA" = "${{ steps.lupine.outputs.libcuda }}"
+          test -z "$(command -v lupine || true)"
