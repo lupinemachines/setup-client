@@ -38,10 +38,20 @@ jobs:
           ls -l "$LUPINE_LIB_DIR"
 ```
 
-Before running the workflow, register `owner/repository` and its trusted branch
-in the [Lupine console](https://console.lupine.sh/github-actions). The first run
-that verifies a new registration must be initiated by the same GitHub user who
-registered it.
+Before running the workflow, register `owner/repository` and its workload in the
+[Lupine console](https://console.lupine.sh/github-actions) or with the CLI:
+
+```shell
+lupine oidc add owner/repository --ref main
+```
+
+Branch, pull-request target, and protected-environment policies are separate.
+For example, `--pull-request main` explicitly lets PRs targeting `main`
+authenticate. PR code can then consume Lupine access, including approved fork
+workflows, so enable that policy only when intended.
+
+The first run that verifies a new registration must be initiated by the same
+GitHub user who registered it.
 
 `id-token: write` lets the job request its own signed identity token; it does
 not grant write access to the repository. The GitHub token is sent directly to
@@ -50,6 +60,10 @@ the Lupine coordinator for verification and is never stored.
 Later steps receive `LUPINE_STATE_DIR`, so the CLI uses the short-lived
 credential automatically. The Lupine API endpoint is the CLI's built-in
 production default.
+
+The OIDC identity belongs to the repository and workflow invoking this
+composite action, not to `lupinemachines/setup-client`. Each caller therefore
+registers its own workload policy.
 
 By default, the action uses the latest public LUPINE release and installs the
 CUDA 13.1.0 / Ubuntu 24.04 / x86_64 client asset.
