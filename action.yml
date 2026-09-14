@@ -19,10 +19,6 @@ inputs:
     description: Optional command to run on Lupine remote runners after authentication.
     required: false
     default: ""
-  workspace:
-    description: File or directory to upload for the remote command. Set empty to upload nothing.
-    required: false
-    default: "."
   gpu:
     description: Optional Lupine GPU SKU for the remote command.
     required: false
@@ -188,7 +184,6 @@ runs:
       shell: bash
       env:
         INPUT_COMMAND: ${{ inputs.command }}
-        INPUT_WORKSPACE: ${{ inputs.workspace }}
         INPUT_GPU: ${{ inputs.gpu }}
         INPUT_REGION: ${{ inputs.region }}
         INPUT_PIP: ${{ inputs.pip }}
@@ -204,9 +199,6 @@ runs:
         fi
         if [ -n "$INPUT_REGION" ]; then
           args+=(--region "$INPUT_REGION")
-        fi
-        if [ -n "$INPUT_WORKSPACE" ]; then
-          args+=(--upload "$INPUT_WORKSPACE")
         fi
         if [ -n "$INPUT_REQUIREMENTS" ]; then
           args+=(--requirements "$INPUT_REQUIREMENTS")
