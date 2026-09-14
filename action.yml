@@ -15,6 +15,38 @@ inputs:
     description: Ubuntu version in the LUPINE client release asset name.
     required: false
     default: "24.04"
+  command:
+    description: Optional command to run on Lupine remote runners after authentication.
+    required: false
+    default: ""
+  workspace:
+    description: File or directory to upload for the remote command. Set empty to upload nothing.
+    required: false
+    default: "."
+  gpu:
+    description: Optional Lupine GPU SKU for the remote command.
+    required: false
+    default: ""
+  region:
+    description: Optional Lupine region for the remote command.
+    required: false
+    default: ""
+  pip:
+    description: Optional newline-separated pip packages to install in the remote environment.
+    required: false
+    default: ""
+  requirements:
+    description: Optional requirements.txt path to install in the remote environment.
+    required: false
+    default: ""
+  output-dir:
+    description: Directory where remote-run output artifacts are downloaded.
+    required: false
+    default: "."
+  no-artifacts:
+    description: Set to "true" to skip downloading remote-run output artifacts.
+    required: false
+    default: "false"
 
 outputs:
   lib-dir:
@@ -143,3 +175,54 @@ runs:
       run: |
         set -euo pipefail
         "${{ steps.cli.outputs.cli-path }}" oidc github-actions
+
+    - name: Reject remote command without Lupine Cloud
+      if: ${{ inputs.command != '' && steps.setup.outputs.use-cloud != 'true' }}
+      shell: bash
+      run: |
+        echo "The 'command' input uses Lupine Cloud remote jobs and cannot be combined with LUPINE_SERVER." >&2
+        exit 1
+
+    - name: Run command on Lupine remote runner
+      if: ${{ inputs.command != '' && steps.setup.outputs.use-cloud == 'true' }}
+      shell: bash
+      env:
+        INPUT_COMMAND: ${{ inputs.command }}
+        INPUT_WORKSPACE: ${{ inputs.workspace }}
+        INPUT_GPU: ${{ inputs.gpu }}
+        INPUT_REGION: ${{ inputs.region }}
+        INPUT_PIP: ${{ inputs.pip }}
+        INPUT_REQUIREMENTS: ${{ inputs.requirements }}
+        INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+        INPUT_NO_ARTIFACTS: ${{ inputs.no-artifacts }}
+      run: |
+        set -euo pipefail
+
+        args=(run --remote)
+        if [ -n "$INPUT_GPU" ]; then
+          args+=(--gpu "$INPUT_GPU")
+        fi
+        if [ -n "$INPUT_REGION" ]; then
+          args+=(--region "$INPUT_REGION")
+        fi
+        if [ -n "$INPUT_WORKSPACE" ]; then
+          args+=(--upload "$INPUT_WORKSPACE")
+        fi
+        if [ -n "$INPUT_REQUIREMENTS" ]; then
+          args+=(--requirements "$INPUT_REQUIREMENTS")
+        fi
+        if [ -n "$INPUT_OUTPUT_DIR" ]; then
+          args+=(--output-dir "$INPUT_OUTPUT_DIR")
+        fi
+        if [ "$INPUT_NO_ARTIFACTS" = "true" ]; then
+          args+=(--no-artifacts)
+        fi
+        while IFS= read -r dep; do
+          dep="${dep#"${dep%%[![:space:]]*}"}"
+          dep="${dep%"${dep##*[![:space:]]}"}"
+          if [ -n "$dep" ]; then
+            args+=(--pip "$dep")
+          fi
+        done <<< "$INPUT_PIP"
+
+        "${{ steps.cli.outputs.cli-path }}" "${args[@]}" -c "$INPUT_COMMAND"
