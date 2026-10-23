@@ -60,3 +60,22 @@ jobs:
           test -f "${{ steps.lupine.outputs.libcuda }}"
           test "$LUPINE_LIBCUDA" = "${{ steps.lupine.outputs.libcuda }}"
           test -z "$(command -v lupine || true)"
+
+  setup-defaults:
+    # Uses the action's default inputs against the latest LUPINE release, so a
+    # default cuda-version that no longer ships fails here.
+    runs-on: ubuntu-24.04
+    env:
+      LUPINE_SERVER: gpu.example.com:14833
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up LUPINE client
+        id: lupine
+        uses: ./
+
+      - name: Verify installed files
+        run: |
+          set -euo pipefail
+          test -f "${{ steps.lupine.outputs.libcuda }}"
+          test -f "${{ steps.lupine.outputs.libnvidia-ml }}"

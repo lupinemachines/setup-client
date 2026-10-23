@@ -29,7 +29,7 @@ jobs:
 
       - uses: lupinemachines/setup-client@v1
         with:
-          cuda-version: 13.1.0
+          cuda-version: 13.3.1
           ubuntu-version: "24.04"
 
       - run: |
@@ -66,7 +66,7 @@ composite action, not to `lupinemachines/setup-client`. Each caller therefore
 registers its own workload policy.
 
 By default, the action uses the latest public LUPINE release and installs the
-CUDA 13.1.0 / Ubuntu 24.04 / x86_64 client asset.
+CUDA 13.3.1 / Ubuntu 24.04 / x86_64 client asset.
 
 This action installs the LUPINE `libcuda` and `libnvidia-ml` shim libraries. It
 does not install CUDA runtime libraries, CUDA development tools, or
@@ -92,7 +92,7 @@ not install the Lupine Cloud CLI or request a GitHub OIDC token.
 | Input | Default | Description |
 | --- | --- | --- |
 | `version` | `latest` | LUPINE release tag to download, or `latest`. |
-| `cuda-version` | `13.1.0` | CUDA version in the client asset name. |
+| `cuda-version` | `13.3.1` | CUDA version in the client asset name. |
 | `ubuntu-version` | `24.04` | Ubuntu version in the client asset name. `ubuntu24.04` is also accepted. |
 
 ## Outputs

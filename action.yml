@@ -10,7 +10,7 @@ inputs:
   cuda-version:
     description: CUDA version in the LUPINE client release asset name.
     required: false
-    default: 13.1.0
+    default: 13.3.1
   ubuntu-version:
     description: Ubuntu version in the LUPINE client release asset name.
     required: false
@@ -81,7 +81,19 @@ runs:
         trap 'rm -rf "$tmp_dir"' EXIT
 
         mkdir -p "$install_dir"
-        curl -fsSL --retry 3 --retry-delay 2 "$download_url" -o "$tmp_dir/$asset_name"
+        if ! curl -fsSL --retry 3 --retry-delay 2 "$download_url" -o "$tmp_dir/$asset_name"; then
+          echo "::error::Could not download $asset_name from $download_url" >&2
+          if [ "$INPUT_VERSION" = "latest" ]; then
+            release_api="https://api.github.com/repos/lupinemachines/lupine/releases/latest"
+          else
+            release_api="https://api.github.com/repos/lupinemachines/lupine/releases/tags/${INPUT_VERSION}"
+          fi
+          echo "Available client assets for $INPUT_VERSION (set cuda-version/ubuntu-version to match one):" >&2
+          curl -fsSL "$release_api" 2>/dev/null \
+            | grep -o '"name": *"lupine-client-cuda-[^"]*-ubuntu[^"]*\.zip"' \
+            | sed 's/.*"\(lupine-client-[^"]*\)"/  \1/' >&2 || true
+          exit 1
+        fi
         unzip -q -o "$tmp_dir/$asset_name" -d "$install_dir"
 
         if [ -f "$install_dir/SHA256SUMS" ]; then
