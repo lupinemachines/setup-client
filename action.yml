@@ -15,6 +15,13 @@ inputs:
     description: Ubuntu version in the LUPINE client release asset name.
     required: false
     default: "24.04"
+  gpu:
+    description: >-
+      GPU SKU to attach to the rest of the job (see `lupine gpus`), e.g. h100.
+      Lupine Cloud only; the runner needs NVIDIA's container toolkit, as
+      Lupine runners have.
+    required: false
+    default: ""
 
 outputs:
   lib-dir:
@@ -155,3 +162,20 @@ runs:
       run: |
         set -euo pipefail
         "${{ steps.cli.outputs.cli-path }}" oidc github-actions
+
+    - name: Attach the GPU
+      if: ${{ inputs.gpu != '' && steps.setup.outputs.use-cloud == 'true' }}
+      shell: bash
+      env:
+        INPUT_GPU: ${{ inputs.gpu }}
+        LUPINE_CLI: ${{ steps.cli.outputs.cli-path }}
+      run: |
+        set -euo pipefail
+        sudo mkdir -p /etc/cdi
+        "$LUPINE_CLI" cdi generate --gpu "$INPUT_GPU" --format json | sudo tee /etc/cdi/lupine.json >/dev/null
+
+        # The job's own steps get the GPU too: its session, and the driver the
+        # spec gives containers.
+        jq -r '.devices[0].containerEdits.env[] | select(startswith("LUPINE_"))' /etc/cdi/lupine.json >> "$GITHUB_ENV"
+        libcuda="$(jq -r '.devices[0].containerEdits.mounts[] | select(.containerPath | endswith("/libcuda.so.1")) | .hostPath' /etc/cdi/lupine.json)"
+        echo "LD_LIBRARY_PATH=$(dirname "$libcuda"):${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"

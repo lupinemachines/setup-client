@@ -79,3 +79,23 @@ jobs:
           set -euo pipefail
           test -f "${{ steps.lupine.outputs.libcuda }}"
           test -f "${{ steps.lupine.outputs.libnvidia-ml }}"
+
+  gpu:
+    runs-on: lupine
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Attach an H100
+        uses: ./
+        with:
+          gpu: h100
+
+      - run: nvidia-smi --query-gpu=name --format=csv,noheader | grep H100
+
+      - run: |
+          docker run --rm --gpus all ubuntu:24.04 sh -c '
+            apt-get update -qq && apt-get install -y -qq --no-install-recommends ca-certificates >/dev/null
+            nvidia-smi --query-gpu=name --format=csv,noheader | grep H100'
