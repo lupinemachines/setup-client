@@ -72,6 +72,31 @@ This action installs the LUPINE `libcuda` and `libnvidia-ml` shim libraries. It
 does not install CUDA runtime libraries, CUDA development tools, or
 `nvidia-smi`; install those separately if your job needs them, we recommend [this action](https://github.com/Jimver/cuda-toolkit).
 
+To give the rest of the job a GPU, set `gpu`. The action runs
+`lupine cdi generate`, so `docker run --gpus` gives containers the GPU, and the
+job's own steps get it too:
+
+```yaml
+jobs:
+  test:
+    runs-on: lupine
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: lupinemachines/setup-client@v1
+        with:
+          gpu: h100
+
+      - run: nvidia-smi
+      - run: docker run --rm --gpus all my-image
+```
+
+The runner needs NVIDIA's container toolkit, as Docker's `--gpus` does on any
+host; Lupine runners have it, and `nvidia-smi`. The GPU is released while
+nothing uses it. Containers need CA certificates: the driver verifies the GPU
+server's TLS against the system store.
+
 To use a server you manage, set `LUPINE_SERVER` at the job or workflow level:
 
 ```yaml
@@ -94,6 +119,7 @@ not install the Lupine Cloud CLI or request a GitHub OIDC token.
 | `version` | `latest` | LUPINE release tag to download, or `latest`. |
 | `cuda-version` | `13.3.1` | CUDA version in the client asset name. |
 | `ubuntu-version` | `24.04` | Ubuntu version in the client asset name. `ubuntu24.04` is also accepted. |
+| `gpu` | | GPU SKU to attach to the rest of the job (see `lupine gpus`), e.g. `h100`. Lupine Cloud only. |
 
 ## Outputs
 
