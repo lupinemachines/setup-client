@@ -74,7 +74,8 @@ does not install CUDA runtime libraries, CUDA development tools, or
 
 To give the rest of the job a GPU, set `gpu`. The action runs
 `lupine cdi generate`, so `docker run --gpus` gives containers the GPU, and the
-job's own steps get it too:
+job's own steps get it too. Nothing is leased then: the job's first CUDA or
+NVML call gets the GPU, and every process in the job shares it.
 
 ```yaml
 jobs:

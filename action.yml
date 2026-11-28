@@ -169,13 +169,17 @@ runs:
       env:
         INPUT_GPU: ${{ inputs.gpu }}
         LUPINE_CLI: ${{ steps.cli.outputs.cli-path }}
+        LUPINE_LIB_PATH: ${{ steps.setup.outputs.lib-dir }}
       run: |
         set -euo pipefail
+        # Offline: the spec names these client libraries, the job's credential
+        # and the GPU type. The job's first CUDA or NVML call gets the GPU.
+        spec="$("$LUPINE_CLI" cdi generate --gpu "$INPUT_GPU" --format json)"
         sudo mkdir -p /etc/cdi
-        "$LUPINE_CLI" cdi generate --gpu "$INPUT_GPU" --format json | sudo tee /etc/cdi/lupine.json >/dev/null
+        printf '%s\n' "$spec" | sudo tee /etc/cdi/lupine.json >/dev/null
+        sudo chmod 600 /etc/cdi/lupine.json
 
-        # The job's own steps get the GPU too: its session, and the driver the
-        # spec gives containers.
-        jq -r '.devices[0].containerEdits.env[] | select(startswith("LUPINE_"))' /etc/cdi/lupine.json >> "$GITHUB_ENV"
-        libcuda="$(jq -r '.devices[0].containerEdits.mounts[] | select(.containerPath | endswith("/libcuda.so.1")) | .hostPath' /etc/cdi/lupine.json)"
-        echo "LD_LIBRARY_PATH=$(dirname "$libcuda"):${LD_LIBRARY_PATH:-}" >> "$GITHUB_ENV"
+        # The job's own steps get the GPU too.
+        env="$(jq -r '.devices[0].containerEdits.env[] | select(startswith("LUPINE_"))' <<<"$spec")"
+        echo "::add-mask::$(sed -n 's/^LUPINE_API_TOKEN=//p' <<<"$env")"
+        printf '%s\n' "$env" >> "$GITHUB_ENV"
